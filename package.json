@@ -1,0 +1,32 @@
+{
+  "name": "ibm_dev_day_hackathon",
+  "version": "1.0.0",
+  "description": "Kit pronto para preparar o ambiente do Bob para um hackathon de 2 dias com foco em resolver problemas reais para engenharia de software.",
+  "main": "index.js",
+  "scripts": {
+    "build": "tsc",
+    "test": "npm run build && node --test dist/tests/intake-loop.test.js",
+    "start": "npm run build && node dist/src/index.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Hacktown-BSB/ZovaoDoBob.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/Hacktown-BSB/ZovaoDoBob/issues"
+  },
+  "homepage": "https://github.com/Hacktown-BSB/ZovaoDoBob#readme",
+  "dependencies": {
+    "@slack/bolt": "^5.0.0",
+    "better-sqlite3": "^13.0.3"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^9.6.0",
+    "@types/node": "^26.4.0",
+    "typescript": "^7.0.2"
+  }
+}

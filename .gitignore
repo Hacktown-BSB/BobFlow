@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+node_modules/
+dist/
+build/
+.venv/
+triage.db
+triage.db-*
+*.db
+smoke.mjs
