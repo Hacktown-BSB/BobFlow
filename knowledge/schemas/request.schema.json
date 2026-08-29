@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "request.schema.json",
+  "title": "NormalizedRequest",
+  "type": "object",
+  "required": ["request_id", "slack_user_id", "slack_channel_id", "thread_ts", "original_message", "normalized_message", "intent", "is_complete", "clarification_round", "created_at", "updated_at"],
+  "properties": {
+    "request_id":           { "type": "string", "format": "uuid" },
+    "slack_user_id":        { "type": "string" },
+    "slack_channel_id":     { "type": "string" },
+    "thread_ts":            { "type": "string" },
+    "original_message":     { "type": "string", "description": "Immutable raw Slack message" },
+    "normalized_message":   { "type": "string" },
+    "intent":               { "type": "string" },
+    "domain_hint": {
+      "type": ["string", "null"],
+      "enum": ["SOFTWARE", "DIGITAL", "HARDWARE", "ACCESS", "SECURITY", "BUSINESS_PROCESS", "QUESTION", "UNKNOWN", null]
+    },
+    "system_hint":          { "type": ["string", "null"] },
+    "module_hint":          { "type": ["string", "null"] },
+    "is_complete":          { "type": "boolean" },
+    "clarification_round":  { "type": "integer", "minimum": 0, "maximum": 2 },
+    "clarification_history": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["question", "answer"],
+        "properties": {
+          "question": { "type": "string" },
+          "answer":   { "type": "string" }
+        }
+      }
+    },
+    "attachments":  { "type": "array", "items": { "type": "string", "format": "uri" } },
+    "notes":        { "type": ["string", "null"] },
+    "created_at":   { "type": "string", "format": "date-time" },
+    "updated_at":   { "type": "string", "format": "date-time" }
+  }
+}

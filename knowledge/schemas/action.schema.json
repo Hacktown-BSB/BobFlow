@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "action.schema.json",
+  "title": "Action",
+  "type": "object",
+  "required": ["action_id", "action_type", "target", "parameters", "authorization", "status", "executed_by"],
+  "properties": {
+    "action_id":    { "type": "string", "format": "uuid" },
+    "action_type": {
+      "type": "string",
+      "enum": [
+        "SLACK_MESSAGE",
+        "GITHUB_ISSUE_CREATE",
+        "GITHUB_REPO_READ",
+        "TICKET_CREATE",
+        "EMAIL_SEND",
+        "KB_QUERY",
+        "INCIDENT_CREATE",
+        "INCIDENT_UPDATE"
+      ]
+    },
+    "target":       { "type": "string" },
+    "parameters":   { "type": "object" },
+    "authorization": {
+      "type": "object",
+      "required": ["requires_human", "authorized_agents", "risk_level"],
+      "properties": {
+        "requires_human":     { "type": "boolean" },
+        "authorized_agents":  { "type": "array", "items": { "type": "string" } },
+        "risk_level":         { "type": "string", "enum": ["READ", "WRITE", "DESTRUCTIVE"] }
+      }
+    },
+    "status": {
+      "type": "string",
+      "enum": ["PENDING", "APPROVED", "REJECTED", "EXECUTED", "FAILED"]
+    },
+    "result":       {},
+    "executed_at":  { "type": ["string", "null"], "format": "date-time" },
+    "executed_by":  { "type": "string" }
+  }
+}

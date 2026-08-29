@@ -1,0 +1,39 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "decision-trace.schema.json",
+  "title": "DecisionTrace",
+  "type": "object",
+  "required": ["trace_id", "request_id", "steps"],
+  "properties": {
+    "trace_id":       { "type": "string", "format": "uuid" },
+    "request_id":     { "type": "string", "format": "uuid" },
+    "final_outcome":  { "type": ["string", "null"] },
+    "resolved_at":    { "type": ["string", "null"], "format": "date-time" },
+    "steps": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["step_id", "timestamp", "agent", "state_from", "state_to", "decision", "confidence", "evidence", "context_source", "next_action"],
+        "properties": {
+          "step_id":        { "type": "string", "format": "uuid" },
+          "timestamp":      { "type": "string", "format": "date-time" },
+          "agent":          { "type": "string" },
+          "state_from":     { "type": "string" },
+          "state_to":       { "type": "string" },
+          "decision":       { "type": "string" },
+          "confidence":     { "type": "number", "minimum": 0, "maximum": 1 },
+          "evidence":       { "type": "array", "items": { "type": "string" } },
+          "context_source": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": ["slack_message", "knowledge_base", "github", "incident_db", "ticket_system"]
+            }
+          },
+          "next_action":    { "type": "string" },
+          "result":         { "type": ["string", "null"] }
+        }
+      }
+    }
+  }
+}

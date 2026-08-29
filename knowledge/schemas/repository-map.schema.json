@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "repository-map.schema.json",
+  "title": "RepositoryMap",
+  "description": "Compact index of repositories for progressive retrieval. No code content.",
+  "type": "object",
+  "required": ["generated_at", "repositories"],
+  "properties": {
+    "generated_at": { "type": "string", "format": "date-time" },
+    "repositories": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["id", "name", "full_name", "description", "primary_language", "owner_team", "on_call_engineer", "signals", "main_modules", "last_commit_at"],
+        "properties": {
+          "id":               { "type": "string" },
+          "name":             { "type": "string" },
+          "full_name":        { "type": "string", "description": "org/repo format" },
+          "description":      { "type": "string" },
+          "primary_language": { "type": "string" },
+          "owner_team":       { "type": "string" },
+          "on_call_engineer": { "type": "string", "description": "GitHub username" },
+          "signals": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Keywords that map user reports to this repository"
+          },
+          "main_modules": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "required": ["path", "description", "signals"],
+              "properties": {
+                "path":        { "type": "string" },
+                "description": { "type": "string" },
+                "signals":     { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          },
+          "last_commit_at": { "type": "string", "format": "date-time" }
+        }
+      }
+    }
+  }
+}

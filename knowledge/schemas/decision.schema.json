@@ -1,0 +1,15 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "decision.schema.json",
+  "title": "Decision",
+  "type": "object",
+  "required": ["decision", "confidence", "evidence", "next_step", "requires_human", "reasoning_summary"],
+  "properties": {
+    "decision":           { "type": "string" },
+    "confidence":         { "type": "number", "minimum": 0, "maximum": 1 },
+    "evidence":           { "type": "array", "items": { "type": "string" }, "minItems": 1 },
+    "next_step":          { "type": "string" },
+    "requires_human":     { "type": "boolean" },
+    "reasoning_summary":  { "type": "string", "description": "Plain language summary — NOT chain-of-thought" }
+  }
+}
