@@ -1,0 +1,24 @@
+{
+  "name": "@zovaodobob/slack-service",
+  "version": "1.0.0",
+  "private": true,
+  "main": "./dist/bot.js",
+  "scripts": {
+    "start": "tsx src/bot.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@slack/bolt": "^3.19.0",
+    "@zovaodobob/shared-types": "*",
+    "dotenv": "^16.4.5",
+    "uuid": "^10.0.0"
+  },
+  "devDependencies": {
+    "@types/uuid": "^10.0.0",
+    "tsx": "^4.16.2",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}
