@@ -6,17 +6,26 @@
  */
 export interface LLMClient {
   complete(params: { system: string; user: string; max_tokens?: number }): Promise<string>;
+  /**
+   * Embed a text string into a vector representation.
+   * Restored from PR #2 packages/llm-client — required by 09_incident_model.md
+   * (cosine-similarity correlation) and by KB semantic search.
+   */
+  embed(text: string): Promise<number[]>;
 }
 
 const TIMEOUT_MS = 60_000;   // §06_workflow_architecture AGENT_EXECUTING budget
 
 export function createLLMClient(): LLMClient {
-  const baseUrl = (process.env['LLM_BASE_URL'] ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const apiKey  = process.env['LLM_API_KEY']  ?? '';
-  const model   = process.env['LLM_MODEL']    ?? 'gpt-4o';
-  const teamId  = process.env['LLM_TEAM_ID'];   // optional — only sent when set
+  const baseUrl   = (process.env['LLM_BASE_URL'] ?? 'https://api.openai.com/v1').replace(/\/$/, '');
+  const apiKey    = process.env['LLM_API_KEY']  ?? '';
+  const model     = process.env['LLM_MODEL']    ?? 'gpt-4o';
+  const embedModel = process.env['LLM_EMBED_MODEL'] ?? 'text-embedding-3-small';
+  const teamId    = process.env['LLM_TEAM_ID'];   // optional — only sent when set
+  // LLM_AUTH_STYLE=apikey (default) sends X-API-Key; bearer sends Authorization: Bearer
+  const authStyle = (process.env['LLM_AUTH_STYLE'] ?? 'apikey') as 'apikey' | 'bearer';
 
-  return { complete };
+  return { complete, embed };
 
   async function complete(
     params: { system: string; user: string; max_tokens?: number },
@@ -33,8 +42,10 @@ export function createLLMClient(): LLMClient {
     });
 
     const headers: Record<string, string> = {
-      'Content-Type':  'application/json',
-      'X-API-Key': apiKey,
+      'Content-Type': 'application/json',
+      ...(authStyle === 'bearer'
+        ? { 'Authorization': `Bearer ${apiKey}` }
+        : { 'X-API-Key': apiKey }),
     };
     if (teamId) headers['X-Team-ID'] = teamId;
 
@@ -48,6 +59,64 @@ export function createLLMClient(): LLMClient {
       .choices?.[0]?.message?.content;
     if (choice == null) throw new Error('LLM response missing choices[0].message.content');
     return choice;
+  }
+
+  async function embed(text: string): Promise<number[]> {
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      ...(authStyle === 'bearer'
+        ? { 'Authorization': `Bearer ${apiKey}` }
+        : { 'X-API-Key': apiKey }),
+    };
+    if (teamId) headers['X-Team-ID'] = teamId;
+
+    const result = await fetchWithRetry(`${baseUrl}/embeddings`, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ model: embedModel, input: text }),
+    });
+
+    const vector = (result as { data?: Array<{ embedding?: number[] }> })
+      .data?.[0]?.embedding;
+    if (vector == null) throw new Error('LLM response missing data[0].embedding');
+    return vector;
+  }
+}
+
+// ── MockLLMClient ─────────────────────────────────────────────────────────────
+// Restored from PR #2 packages/llm-client. Deterministic, no network.
+
+export interface MockFixtures {
+  /** If set, complete() returns this content verbatim. */
+  completeContent?: string;
+  /** If set, embed() returns this vector. */
+  embedding?: number[];
+}
+
+export class MockLLMClient implements LLMClient {
+  private fixtures: MockFixtures;
+
+  constructor(fixtures: MockFixtures = {}) {
+    this.fixtures = fixtures;
+  }
+
+  async complete(params: { system: string; user: string; max_tokens?: number }): Promise<string> {
+    return this.fixtures.completeContent ?? `{"mock":"response for: ${params.user.slice(0, 60)}"}`;
+  }
+
+  async embed(text: string): Promise<number[]> {
+    if (this.fixtures.embedding) return this.fixtures.embedding;
+    // Deterministic 8-dim pseudo-embedding based on character codes.
+    const vec = new Array<number>(8).fill(0);
+    for (let i = 0; i < text.length; i++) {
+      vec[i % 8] = (vec[i % 8]! + text.charCodeAt(i)) % 1000;
+    }
+    return vec.map((v) => v / 1000);
+  }
+
+  /** Override fixtures at runtime (useful in tests). */
+  setFixtures(fixtures: MockFixtures): void {
+    this.fixtures = fixtures;
   }
 }
 

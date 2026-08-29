@@ -3,7 +3,7 @@ import Database from 'better-sqlite3';
 import type { NormalizedRequest } from '../db/schema.js';
 import {
   getRequest, setStatus, appendClarificationAnswer,
-  applyRefinementOutput, appendTrace, markTriageDispatched,
+  applyRefinementOutput, appendTrace, markTriageDispatched, resetTriageDispatched,
 } from '../db/repository.js';
 import type { RefinementOutput } from '../db/schema.js';
 import { loggingTriagePort, toTriageInput } from '../triage/port.js';
@@ -138,6 +138,9 @@ export class StateMachine {
       });
 
       // ── Triage handoff (2a: exactly once, persisted; 2b: never breaks intake) ──
+      // D1 fix: set the flag AFTER the port resolves so a failing port leaves the
+      // request retryable.  We still use markTriageDispatched as an optimistic CAS
+      // lock to win the race, then reset it in the catch if the port throws.
       const won = markTriageDispatched(this.db, updated.request_id);
       if (won) {
         this._trace(updated, {
@@ -151,7 +154,9 @@ export class StateMachine {
         try {
           await this.triagePort.onReadyForTriage(toTriageInput(updated));
         } catch (err) {
-          // 2b: port failure must not break intake — log, trace, leave at READY_FOR_TRIAGE
+          // 2b: port failure must not break intake — reset flag so retry can re-dispatch,
+          // log, trace, leave at READY_FOR_TRIAGE.
+          resetTriageDispatched(this.db, updated.request_id);
           const msg = err instanceof Error ? err.message : String(err);
           console.error('[sm] TriagePort threw; request stays READY_FOR_TRIAGE:', msg);
           this._trace(updated, {

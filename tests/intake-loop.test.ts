@@ -10,6 +10,7 @@ import { StateMachine } from '../src/orchestrator/state-machine.js';
 import { mockRefinementAgent, resetMockState } from '../src/agents/refinement.mock.js';
 import { refinementAgent, setLLMClient } from '../src/agents/refinement.js';
 import type { LLMClient } from '../src/llm/client.js';
+import { requestApproval, resolveApproval, pendingApprovalCount } from '../src/slack/approval.js';
 import type { RefinementAgent } from '../src/orchestrator/state-machine.js';
 import type { TriagePort, TriageInput } from '../src/triage/port.js';
 import { TriagePortImpl } from '../src/triage/impl.js';
@@ -193,6 +194,7 @@ describe('intake-loop', () => {
   // (h) sufficiency: SOFTWARE missing error_description → is_complete false + correct question
   it('(h) SOFTWARE missing error_description → is_complete false, question from bank', async () => {
     const stubLLM: LLMClient = {
+      async embed(): Promise<number[]> { return []; },
       async complete() {
         return JSON.stringify({
           normalized_message: 'Usuário reporta problema no sistema ERP.',
@@ -229,6 +231,7 @@ describe('intake-loop', () => {
   it('(i) "não sei" answer → field recorded as unknown, loop advances to is_complete=true', async () => {
     let callCount = 0;
     const stubLLM: LLMClient = {
+      async embed(): Promise<number[]> { return []; },
       async complete() {
         callCount++;
         if (callCount === 1) {
@@ -279,6 +282,7 @@ describe('intake-loop', () => {
   // (j) LLM throwing → degrades gracefully, loop still reaches clarification, never throws
   it('(j) LLM error → degrades gracefully, reaches clarification, does not throw', async () => {
     const throwingLLM: LLMClient = {
+      async embed(): Promise<number[]> { return []; },
       async complete() { throw new Error('simulated LLM network failure'); },
     };
     setLLMClient(throwingLLM);
@@ -303,6 +307,7 @@ describe('intake-loop', () => {
   it('(k) delimiter sequence in message → neutralised, request created normally', async () => {
     const capturedUserArgs: string[] = [];
     const spyLLM: LLMClient = {
+      async embed(): Promise<number[]> { return []; },
       async complete(p) {
         capturedUserArgs.push(p.user);
         return JSON.stringify({
@@ -548,4 +553,51 @@ describe('intake-loop', () => {
     assert.equal(t.domain, 'SOFTWARE', `expected domain=SOFTWARE, got=${t.domain}`);
   });
 
+});
+
+// ── Human approval gate (restored from PR #2) ────────────────────────────────
+describe('approval-gate', () => {
+  const fakeClient = (posted: unknown[]) => ({
+    chat: { postMessage: async (p: unknown) => { posted.push(p); return { ok: true, ts: '1.1' }; } },
+  }) as unknown as import('@slack/web-api').WebClient;
+
+  it('(q) approve click resolves the pending promise as true', async () => {
+    const posted: unknown[] = [];
+    const p = requestApproval(fakeClient(posted), {
+      channel_id: 'C1', thread_ts: '123.456', action_id: 'act-1', description: 'criar issue',
+    });
+    await new Promise(r => setImmediate(r));
+    assert.equal(pendingApprovalCount(), 1);
+    resolveApproval('act-1', true);
+    assert.equal(await p, true);
+    assert.equal(pendingApprovalCount(), 0, 'pending entry must be cleared');
+  });
+
+  it('(r) reject click resolves as false', async () => {
+    const p = requestApproval(fakeClient([]), {
+      channel_id: 'C1', thread_ts: null, action_id: 'act-2', description: 'enviar email',
+    });
+    await new Promise(r => setImmediate(r));
+    resolveApproval('act-2', false);
+    assert.equal(await p, false);
+  });
+
+  it('(s) unknown action_id is a no-op, does not throw', () => {
+    assert.doesNotThrow(() => resolveApproval('nao-existe', true));
+  });
+
+  it('(t) buttons carry the action_id and use Block Kit', async () => {
+    const posted: unknown[] = [];
+    const p = requestApproval(fakeClient(posted), {
+      channel_id: 'C1', thread_ts: '9.9', action_id: 'act-3', description: 'deploy',
+    });
+    await new Promise(r => setImmediate(r));
+    const msg = posted[0] as { blocks: Array<{ type: string; elements?: Array<{ action_id: string; value: string }> }> };
+    const actions = msg.blocks.find(b => b.type === 'actions');
+    assert.equal(actions?.elements?.[0]?.action_id, 'action_approve');
+    assert.equal(actions?.elements?.[0]?.value, 'act-3');
+    assert.equal(actions?.elements?.[1]?.action_id, 'action_reject');
+    resolveApproval('act-3', true);
+    await p;
+  });
 });

@@ -13,21 +13,52 @@
  *   Replace the stub body of `runTriage()` with an actual LLM call:
  *     const raw = await llmClient.complete(buildTriagePrompt(input));
  *     return applyPriorityScoring(JSON.parse(raw)) as TriageResult;
+ *   The LLM should output signal scores only, never a priority (P10).
  */
 
 import type { TriageInput } from '../triage/port.js';
 import type { TriageResult, Domain } from '../db/schema.js';
+import {
+  extractPriorityScores,
+  extractDomainFlags,
+  computePriority,
+  computeComposite,
+  buildPriorityEvidence,
+} from '../engine/priority-scoring.js';
 
 // ─── Public function (stable signature for future extraction) ─────────────────
 
 /**
  * Classifies a TriageInput and returns a TriageResult.
- * Stub implementation: deterministic SOFTWARE/MEDIUM result.
- * Replace body with LLM call before demo.
+ * Priority is computed deterministically by the Priority Scoring Engine (I5/P10).
+ * Signal scores are extracted by keyword rules from TriageInput fields.
+ * Replace the domain classification stub with an LLM call before demo.
  */
 export async function runTriage(input: TriageInput): Promise<TriageResult> {
   // Domain coercion: domain_hint is already a Domain (from TriageInput), use it directly.
   const domain: Domain = input.domain_hint ?? 'UNKNOWN';
+
+  // ── Extract priority signals from available TriageInput fields ──────────────
+  const scores = extractPriorityScores(
+    input.normalized_message,
+    input.intent,
+    input.domain_hint,
+    input.system_hint,
+  );
+
+  // ── Extract domain-level flags ───────────────────────────────────────────────
+  const flags = extractDomainFlags(
+    input.normalized_message,
+    input.intent,
+    input.domain_hint,
+  );
+
+  // ── Compute priority deterministically (I5 — never a literal assignment) ────
+  const priority = computePriority(scores, domain, flags);
+  const composite = computeComposite(scores);
+
+  // ── Build evidence array (P4 — every decision references explicit signals) ──
+  const evidence = buildPriorityEvidence(scores, composite, priority, flags);
 
   return {
     request_id:             input.request_id,
@@ -35,17 +66,9 @@ export async function runTriage(input: TriageInput): Promise<TriageResult> {
     system:                 input.system_hint,
     module:                 input.module_hint,
     confidence:             input.domain_hint !== null ? 0.9 : 0.5,
-    evidence:               ['stub: deterministic classification from domain_hint'],
-    priority:               'MEDIUM',
-    priority_scores: {
-      urgency:          2,
-      users_affected:   1,
-      customer_impact:  0,
-      financial_impact: 0,
-      security_flag:    0,
-      workaround:       1,
-      criticality:      0,
-    },
+    evidence,
+    priority,
+    priority_scores:        scores,
     route:                  domainToRoute(domain),
     is_duplicate:           false,
     correlated_request_ids: [],

@@ -277,7 +277,7 @@ export async function refinementAgent(
     system_hint:          typeof llmOutput.system_hint === 'string' ? llmOutput.system_hint : null,
     module_hint:          typeof llmOutput.module_hint === 'string' ? llmOutput.module_hint : null,
     is_complete:          failureNote ? false : is_complete,
-    clarification_question: failureNote ? clarification_question : clarification_question,
+    clarification_question: clarification_question,
     clarification_round:  finalRound,
     extracted_fields:     failureNote ? {} : extracted,
     notes,

@@ -5,6 +5,7 @@ import { StateMachine } from '../orchestrator/state-machine.js';
 import { mockRefinementAgent } from '../agents/refinement.mock.js';
 import { refinementAgent } from '../agents/refinement.js';
 import { makeSendMessage } from './send.js';
+import { resolveApproval } from './approval.js';
 import type { RefinementAgent } from '../orchestrator/state-machine.js';
 // ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
 import type { TriagePort } from '../triage/port.js';
@@ -102,6 +103,20 @@ export function createBot(db: Database.Database, env: {
         console.error('[bot] failed to post OPEN_REQUEST_EXISTS reply', err);
       }
     }
+  });
+
+  // ── Human approval buttons (P5) ──────────────────────────────────────────
+  // Restored from PR #2 packages/slack-service/src/bot.ts.
+  app.action('action_approve', async ({ body, ack }) => {
+    await ack();
+    const actionId = (body as { actions?: Array<{ value?: string }> }).actions?.[0]?.value;
+    if (actionId) resolveApproval(actionId, true);
+  });
+
+  app.action('action_reject', async ({ body, ack }) => {
+    await ack();
+    const actionId = (body as { actions?: Array<{ value?: string }> }).actions?.[0]?.value;
+    if (actionId) resolveApproval(actionId, false);
   });
 
   return app;

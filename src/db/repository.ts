@@ -243,3 +243,13 @@ export function markTriageDispatched(db: Database.Database, request_id: string):
   ).run(new Date().toISOString(), request_id);
   return result.changes === 1;
 }
+
+/**
+ * Resets triage_dispatched to 0 so the request can be retried after a port failure.
+ * Only called from the catch block in StateMachine — never called on success.
+ */
+export function resetTriageDispatched(db: Database.Database, request_id: string): void {
+  db.prepare(
+    'UPDATE requests SET triage_dispatched = 0, updated_at = ? WHERE request_id = ?'
+  ).run(new Date().toISOString(), request_id);
+}
