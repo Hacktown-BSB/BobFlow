@@ -1,5 +1,78 @@
 import Database from 'better-sqlite3';
 
+// ── Priority & AgentRoute (mirrored from PR #2 shared-types) ─────────────────
+export type Priority = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW' | 'INFORMATIONAL';
+export type AgentRoute = 'knowledge' | 'engineering' | 'ticket' | 'incident' | 'human';
+
+export interface PriorityScores {
+  urgency: number;
+  users_affected: number;
+  customer_impact: number;
+  financial_impact: number;
+  security_flag: number;
+  workaround: number;
+  criticality: number;
+}
+
+// ── TriageResult ──────────────────────────────────────────────────────────────
+export interface TriageResult {
+  request_id: string;
+  domain: Domain;
+  system: string | null;
+  module: string | null;
+  confidence: number;          // 0.0–1.0
+  evidence: string[];
+  priority: Priority;
+  priority_scores: PriorityScores;
+  route: AgentRoute;
+  is_duplicate: boolean;
+  correlated_request_ids: string[];
+  requires_human: boolean;
+  triaged_at: string;
+}
+
+// ── Downstream agent result stubs ─────────────────────────────────────────────
+export interface KnowledgeResult {
+  request_id: string;
+  resolved: boolean;
+  confidence: number;
+  answer: string;
+  sources: string[];
+  data_source: 'knowledge_base' | 'data_warehouse' | 'ai_general' | 'unresolved';
+  escalation_recommended: boolean;
+  escalation_reason: string | null;
+}
+
+export interface IssueResult {
+  issue_id: string;
+  request_id: string;
+  issue_type: 'BUG' | 'INCIDENT' | 'MAJOR_INCIDENT';
+  created_at: string;
+  analysis: string | null;
+  root_cause_hypothesis: string | null;
+  confidence: number;
+  evidence: string[];
+  github_issue: { title: string; body: string; labels: string[]; assignees: string[]; milestone: string | null } | null;
+  incident_id: string | null;
+  classification: 'DUPLICATE' | 'RELATED' | 'INCIDENT' | 'MAJOR_INCIDENT' | 'NONE' | null;
+  correlated_request_ids: string[];
+  requires_human_approval: boolean;
+  recommended_action: string;
+}
+
+export interface TicketResult {
+  request_id: string;
+  ticket_id: string;
+  queue: string;
+  priority: Priority;
+  title: string;
+  description: string;
+  status: 'QUEUED_FOR_APPROVAL' | 'SENT' | 'FAILED';
+  email_to: string[];
+  requires_human: boolean;
+}
+
+
 export type Status =
   | 'RECEIVED' | 'NORMALIZING' | 'CLARIFICATION_PENDING'
   | 'READY_FOR_TRIAGE' | 'TRIAGING' | 'TRIAGED' | 'CONTEXT_RETRIEVAL'

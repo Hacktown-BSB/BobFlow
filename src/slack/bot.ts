@@ -6,11 +6,9 @@ import { mockRefinementAgent } from '../agents/refinement.mock.js';
 import { refinementAgent } from '../agents/refinement.js';
 import { makeSendMessage } from './send.js';
 import type { RefinementAgent } from '../orchestrator/state-machine.js';
-// ─── TRIAGE INTEGRATION POINT (Dev 2) ────────────────────────────────────────
-// Replace loggingTriagePort with your TriagePort implementation.
-// Import your implementation here and pass it as the 4th argument to StateMachine.
-import { loggingTriagePort } from '../triage/port.js';
+// ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
 import type { TriagePort } from '../triage/port.js';
+import { triagePortImpl } from '../triage/impl.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -41,9 +39,8 @@ export function createBot(db: Database.Database, env: {
   const agent: RefinementAgent = mode === 'llm' ? refinementAgent : mockRefinementAgent;
   console.log(`[bot] refinement mode: ${mode === 'llm' ? 'LLM (real)' : 'MOCK (demo fallback)'}`);
 
-  // ─── TRIAGE INTEGRATION POINT (Dev 2) ────────────────────────────────────────
-  // Replace loggingTriagePort with your TriagePort implementation.
-  const triagePort: TriagePort = loggingTriagePort;
+  // ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
+  const triagePort: TriagePort = triagePortImpl;
   // ─────────────────────────────────────────────────────────────────────────────
   const stateMachine = new StateMachine(db, agent, sendMessage, triagePort);
 

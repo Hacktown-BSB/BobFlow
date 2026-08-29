@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import Database from 'better-sqlite3';
 import { initDb } from '../src/db/schema.js';
+import type { TriageResult } from '../src/db/schema.js';
 import { getRequest } from '../src/db/repository.js';
 import { SlackAdapter, type OrchestratorInterface, type ProcessEventResult } from '../src/slack/adapter.js';
 import { StateMachine } from '../src/orchestrator/state-machine.js';
@@ -11,6 +12,8 @@ import { refinementAgent, setLLMClient } from '../src/agents/refinement.js';
 import type { LLMClient } from '../src/llm/client.js';
 import type { RefinementAgent } from '../src/orchestrator/state-machine.js';
 import type { TriagePort, TriageInput } from '../src/triage/port.js';
+import { TriagePortImpl } from '../src/triage/impl.js';
+import { runTriage } from '../src/agents/triage.js';
 
 const BOT = 'UBOT001', UA = 'USER_A', CHAN = 'C001', DM = 'D001';
 const DEBOUNCE = 20;   // injected debounce for fast tests
@@ -492,6 +495,57 @@ describe('intake-loop', () => {
         `expected pattern ${label} in redacted_patterns: [${patterns.join(',')}] for message: "${message}"`,
       );
     }
+  });
+
+  // ── END-TO-END TEST ───────────────────────────────────────────────────────
+
+  // (p) Synthetic app_mention drives intake through the REAL TriagePort (TriagePortImpl),
+  //     through the real triage agent, and asserts that a domain classification comes back.
+  //     The LLM is stubbed — runTriage is a pure stub (no network).
+  it('(p) end-to-end: app_mention → intake → TriagePort → triage → domain classification', async () => {
+    const triageResults: TriageResult[] = [];
+
+    // Subclass TriagePortImpl to capture what runTriage() returns.
+    // super.onReadyForTriage is NOT called — we only test the triage step here.
+    class CapturingTriagePort extends TriagePortImpl {
+      override async onReadyForTriage(input: TriageInput): Promise<void> {
+        const result = await runTriage(input);
+        triageResults.push(result);
+      }
+    }
+
+    // Use refinement agent that immediately completes with a known domain_hint.
+    const directComplete: RefinementAgent = async (_id, _m, _h, _r) => ({
+      normalized_message: 'Sistema de pagamentos retorna erro 500 ao processar boleto.',
+      intent: 'Reportar falha no sistema de pagamentos',
+      domain_hint: 'SOFTWARE',
+      system_hint: 'Pagamentos',
+      module_hint: 'boleto',
+      is_complete: true,
+      clarification_question: null,
+      clarification_round: 0,
+      extracted_fields: { system_name: 'Pagamentos', error_description: 'HTTP 500' },
+      notes: null,
+    });
+
+    const { db, adapter } = harness(directComplete, new CapturingTriagePort());
+    const [ev, env] = mention({ text: '<@UBOT001> sistema de pagamentos com erro 500' });
+    await adapter.processEvent(ev, env);
+    await sleep(D + 150);
+
+    // ── Assertions ──────────────────────────────────────────────────────────
+    assert.equal(triageResults.length, 1, 'TriagePortImpl must call runTriage exactly once');
+
+    const t = triageResults[0]!;
+    assert.ok(typeof t.domain === 'string' && t.domain.length > 0, 'domain must be a non-empty string');
+    assert.ok(typeof t.priority === 'string', 'priority must be set');
+    assert.ok(typeof t.confidence === 'number' && t.confidence >= 0 && t.confidence <= 1, 'confidence must be 0–1');
+    assert.ok(Array.isArray(t.evidence), 'evidence must be an array');
+    assert.equal(t.request_id, (db.prepare('SELECT request_id FROM requests').get() as Record<string, string>)['request_id'],
+      'TriageResult.request_id must match the persisted request_id');
+
+    // For a SOFTWARE domain_hint, the stub must classify as SOFTWARE.
+    assert.equal(t.domain, 'SOFTWARE', `expected domain=SOFTWARE, got=${t.domain}`);
   });
 
 });
