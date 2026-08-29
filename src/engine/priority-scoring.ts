@@ -209,8 +209,12 @@ export function extractPriorityScores(
 }
 
 function extractUrgency(text: string): number {
-  if (match(text, /business.stopped|company.blocked|entire.company|empresa.parada/)) return 5;
-  if (match(text, /everyone|all.+blocked|toda.+(equipe|time)|todos.+bloqueados?|ninguém.+consegue|nobody.+can|team.+blocked|equipe.+bloqueada?|finance.team.+blocked|all.+finance/)) return 4;
+  // urgency=5: entire business function / department is stopped.
+  // "finance team blocked" / "toda a equipe" / "todo o time" / "todos do setor/área" → the whole
+  // department can no longer function, equivalent to "business stopped" for that unit.
+  // Pattern audit — pt-BR forms covered: todo/toda/todos/todas + o/a (article optional) + equipe/time/setor/área
+  if (match(text, /business.stopped|company.blocked|entire.company|empresa.parada|todos?a?s?.+[oa].+(equipe|time|setor|área).+(bloquead|pared|parad)|tod[oa]s?.+(equipe|time|setor|área).+(bloquead|pared|parad)|finance.team.+blocked|all.+(team|equipe|time).+blocked|toda.+área.+(pared|parad|bloqueada)/)) return 5;
+  if (match(text, /everyone|all.+blocked|tod[oa]s?.+[oa]?.*(equipe|time|setor)|todos.+bloqueados?|ninguém.+consegue|nobody.+can|team.+blocked|equipe.+bloqueada?|all.+finance/)) return 4;
   if (match(text, /can't work|cannot work|não consigo|bloqueado|blocked|travado|urgente|urgent|crítico|critical/)) return 3;
   if (match(text, /\bontem\b|yesterday|hoje\b|today|\bwaiting\b/)) return 2;
   if (match(text, /\bslow\b|lento|minor|pequeno/)) return 1;
@@ -218,19 +222,21 @@ function extractUrgency(text: string): number {
 }
 
 function extractUsersAffected(text: string): number {
-  if (match(text, /\ball\b|everyone|toda.+(equipe|time)|todos\b|equipe\b|toda.+equipe|finance.team|finance team/)) return 5;
+  // users_affected=5: all / everyone / toda equipe / todo time / todos do setor / toda área
+  // pt-BR forms: todo/toda/todos + o/a (article) + equipe/time/setor/área
+  if (match(text, /\ball\b|everyone|tod[oa]s?.+[oa]?.*(equipe|time|setor|área)|todos\b|equipe\b|toda.+equipe|finance.team|finance team/)) return 5;
   if (match(text, /multiple|vários|várias|many|several|group|\bteam\b/)) return 3;
   if (match(text, /\b(2|two|a few|some)\b/)) return 2;
   return 1;
 }
 
 function extractCustomerImpact(text: string): number {
-  if (match(text, /cliente|client|customer|invoice|nota.fiscal/)) return 2;
+  if (match(text, /cliente|client|customer|invoice|notas?.fiscais?/)) return 2;
   return 0;
 }
 
 function extractFinancialImpact(text: string): number {
-  if (match(text, /invoice|nota.fiscal|fatura|payment|pagamento|billing|receita|revenue|financial|financeiro/)) return 2;
+  if (match(text, /invoice|notas?.fiscais?|fatura|payment|pagamento|billing|receita|revenue|financial|financeiro/)) return 2;
   return 0;
 }
 
@@ -267,8 +273,18 @@ function match(text: string, pattern: RegExp): boolean {
 /**
  * Derives DomainFlags from message text.
  *
- * production_down: SOFTWARE domain AND message suggests service completely down
- *   ("down" / "não funciona" / "500" / "error" + "all" or "everyone")
+ * production_down: SOFTWARE domain AND the SERVICE ITSELF is unreachable / offline.
+ *
+ *   RULE: "system down" means the service is entirely unavailable to all users — no request
+ *   succeeds. It does NOT mean a single operation returns an error code (e.g. HTTP 500 on
+ *   invoice creation). An error code in the message is evidence of a feature failure, not
+ *   service unavailability. Concretely:
+ *     ✓ "the system is down" / "out of service" / "service unavailable" / "fora do ar"
+ *     ✗ "HTTP 500 when creating invoices"  ← one operation fails; system is up
+ *     ✗ "não funciona" (= "doesn't work")  ← feature-level failure, not service offline
+ *
+ *   Patterns that fire: \bdown\b (as standalone), service.unavailable, out.of.service,
+ *   sistema.fora, fora.do.ar, completamente.bloqueado
  *
  * clevel_blocked: ACCESS domain AND message mentions C-level title
  *   ("CEO" / "CFO" / "CTO" / "COO" / "VP" / "Director" / "board")
@@ -282,7 +298,7 @@ export function extractDomainFlags(
 
   const production_down =
     domain_hint === 'SOFTWARE' &&
-    match(text, /\bdown\b|não funciona|500|http.5\d\d|service.unavailable|out.of.service|completely.blocked/);
+    match(text, /\bdown\b|service.unavailable|out.of.service|sistema.+fora\b|fora.do.ar|completamente.bloqueado/);
 
   const clevel_blocked =
     domain_hint === 'ACCESS' &&

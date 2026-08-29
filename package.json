@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "tsc",
-    "test": "npm run build && node --test dist/tests/intake-loop.test.js",
+    "test": "npm run build && node --test dist/tests/intake-loop.test.js dist/tests/priority-scoring.test.js",
     "start": "npm run build && node dist/src/index.js"
   },
   "repository": {
