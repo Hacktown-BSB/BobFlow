@@ -1,0 +1,91 @@
+# ============================================
+# BOB AI ASSISTANT - SECURITY IGNORE PATTERNS
+# ============================================
+# Prevents Bob from logging credentials in session history
+# DO NOT REMOVE OR MODIFY THESE PATTERNS
+# ============================================
+
+# IBM Cloud API Keys
+*IBM_CLOUD_API_KEY*
+*ibm_cloud_api_key*
+*IBMCLOUD_API_KEY*
+*apikey*
+*api-key*
+*api_key*
+
+# Watson Service Credentials
+*WATSON_*_API_KEY*
+*watson_*_api_key*
+*WATSON_*_URL*
+*ASSISTANT_API_KEY*
+*DISCOVERY_API_KEY*
+
+# Generic Credentials
+*API_KEY*
+*api_key*
+*ACCESS_TOKEN*
+*access_token*
+*SECRET_KEY*
+*secret_key*
+*PASSWORD*
+*password*
+*SECRET*
+*secret*
+*CREDENTIAL*
+*credential*
+*PRIVATE_KEY*
+*private_key*
+*AUTH_TOKEN*
+*auth_token*
+*BEARER_TOKEN*
+*bearer_token*
+
+# Environment Files
+.env
+.env.*
+*.env
+env.local
+
+# Configuration Files
+*credentials.json
+*credentials.yaml
+*secrets.json
+*secrets.yaml
+*config.json
+*config.yaml
+
+# Private Keys
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+id_rsa
+id_dsa
+
+# Database Credentials
+*DATABASE_URL*
+*database_url*
+*DB_PASSWORD*
+*db_password*
+*CONNECTION_STRING*
+*connection_string*
+
+# Session Tokens
+*SESSION_SECRET*
+*session_secret*
+*JWT_SECRET*
+*jwt_secret*
+
+# Command Outputs
+*ibmcloud iam api-key-create*
+*ibmcloud login*
+*export *API_KEY*
+*export *PASSWORD*
+*echo $*API_KEY*
+*printenv*
+
+# ============================================
+# DO NOT REMOVE ABOVE PATTERNS
+# ============================================
