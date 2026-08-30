@@ -220,11 +220,11 @@ describe('intake-loop', () => {
     assert.equal(req.is_complete, false, 'should not be complete when error_description is missing');
     assert.ok(req.clarification_question != null, 'clarification_question should be set');
     assert.ok(
-      req.clarification_question!.includes('mensagem de erro'),
+      req.clarification_question!.includes('error message'),
       `expected bank question for error_description, got: ${req.clarification_question}`,
     );
     assert.ok(sent.length > 0, 'bot should have sent clarification message');
-    assert.ok(sent[0]!.includes('mensagem de erro'), `sent[0]: ${sent[0]}`);
+    assert.ok(sent[0]!.includes('error message'), `sent[0]: ${sent[0]}`);
   });
 
   // (i) "não sei" answer → field recorded as "unknown", counts as present, not re-asked

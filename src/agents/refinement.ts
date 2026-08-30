@@ -53,39 +53,39 @@ function computeIsComplete(domain_hint: string | null, extracted: ExtractedField
 
 const QUESTION_BANK: Record<string, Record<string, string>> = {
   SOFTWARE: {
-    error_description:    'Aparece alguma mensagem de erro ou código específico quando isso acontece?',
-    system_name:          'Em qual sistema ou ferramenta o problema está ocorrendo?',
-    steps_to_reproduce:   'Você consegue descrever o que estava tentando fazer quando o erro apareceu?',
+    error_description:    'Is there a specific error message or code appearing when this happens?',
+    system_name:          'Which system or tool is the problem occurring in?',
+    steps_to_reproduce:   'Can you describe what you were trying to do when the error appeared?',
   },
   HARDWARE: {
-    device_type:          'Qual equipamento está com problema — notebook, desktop, impressora, monitor ou outro?',
-    problem_description:  'O que exatamente está acontecendo com o equipamento?',
-    asset_tag:            'Você sabe o número de patrimônio ou modelo do equipamento? (Pode pular se não souber.)',
+    device_type:          'Which device is having the issue — laptop, desktop, printer, monitor, or something else?',
+    problem_description:  'What exactly is happening with the device?',
+    asset_tag:            'Do you know the asset tag or model of the device? (Feel free to skip if you don\'t.)',
   },
   ACCESS: {
-    system_name:          'Em qual sistema ou aplicativo você está com problema de acesso?',
-    access_type:          'É uma senha, uma permissão específica, VPN ou outro tipo de acesso?',
-    urgency_reason:       'Esse problema está te impedindo de trabalhar agora?',
+    system_name:          'Which system or application are you having trouble accessing?',
+    access_type:          'Is it a password, a specific permission, VPN, or another type of access issue?',
+    urgency_reason:       'Is this problem preventing you from working right now?',
   },
   DIGITAL: {
-    tool_name:            'Qual ferramenta ou aplicativo está com problema?',
-    problem_description:  'O que está acontecendo — erro, lentidão, tela em branco ou outra coisa?',
-    account_email:        'O problema é com a sua conta pessoal ou afeta outras pessoas também?',
+    tool_name:            'Which tool or application is having the problem?',
+    problem_description:  'What is happening — an error, slowness, blank screen, or something else?',
+    account_email:        'Is the problem with your personal account or does it affect other people too?',
   },
   SECURITY: {
-    what_was_observed:    'O que você viu ou recebeu que pareceu suspeito?',
-    when_it_happened:     'Quando isso aconteceu — agora há pouco, hoje, ou em outro momento?',
-    which_system:         'Em qual dispositivo ou sistema você notou isso?',
+    what_was_observed:    'What did you see or receive that seemed suspicious?',
+    when_it_happened:     'When did this happen — just now, earlier today, or at another time?',
+    which_system:         'Which device or system did you notice this on?',
   },
   BUSINESS_PROCESS: {
-    process_name:         'Qual processo ou etapa está com problema?',
-    stuck_step:           'Em qual passo específico você está travado ou sem conseguir avançar?',
+    process_name:         'Which process or step is having the problem?',
+    stuck_step:           'At which specific step are you stuck or unable to move forward?',
   },
   QUESTION: {
-    specific_question:    'Qual é exatamente a dúvida — pode detalhar um pouco mais?',
+    specific_question:    'What exactly is your question — could you give a bit more detail?',
   },
   UNKNOWN: {
-    general_description:  'Pode me contar um pouco mais sobre o que está acontecendo?',
+    general_description:  'Could you tell me a bit more about what is happening?',
   },
 };
 

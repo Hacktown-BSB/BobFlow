@@ -134,7 +134,15 @@ function buildIssuePrompt(
 // ── Response parser ───────────────────────────────────────────────────────────
 
 function parseLLMIssueResponse(raw: string): LLMIssueOutput {
-  const jsonText = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  const stripped = raw.replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '').trim();
+  // The model (especially for the `body` field) may emit literal newlines/tabs
+  // inside JSON string values, which are control characters forbidden by the
+  // JSON spec and cause "Bad control character in string literal" at parse time.
+  // Replace them with their escaped equivalents inside every string token.
+  const jsonText = stripped.replace(
+    /"(?:[^"\\]|\\.)*"/gs,
+    (match) => match.replace(/\n/g, '\\n').replace(/\r/g, '\\r').replace(/\t/g, '\\t'),
+  );
   const parsed = JSON.parse(jsonText) as LLMIssueOutput;
   if (typeof parsed.body !== 'string' || parsed.body.trim() === '') {
     throw new Error('LLM issue response missing required field: body');

@@ -45,25 +45,25 @@ export function requestApproval(
     void client.chat.postMessage({
       channel: params.channel_id,
       ...(params.thread_ts ? { thread_ts: params.thread_ts } : {}),
-      text: `Aprovação necessária: ${params.description}`,
+      text: `Approval required: ${params.description}`,
       blocks: [
         {
           type: 'section',
-          text: { type: 'mrkdwn', text: `*Aprovação necessária*\n${params.description}` },
+          text: { type: 'mrkdwn', text: `*Approval required*\n${params.description}` },
         },
         {
           type: 'actions',
           elements: [
             {
               type: 'button',
-              text: { type: 'plain_text', text: 'Aprovar' },
+              text: { type: 'plain_text', text: 'Approve' },
               style: 'primary',
               action_id: 'action_approve',
               value: params.action_id,
             },
             {
               type: 'button',
-              text: { type: 'plain_text', text: 'Rejeitar' },
+              text: { type: 'plain_text', text: 'Reject' },
               style: 'danger',
               action_id: 'action_reject',
               value: params.action_id,

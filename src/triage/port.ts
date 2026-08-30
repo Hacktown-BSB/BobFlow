@@ -29,6 +29,16 @@ export interface TriageInput {
   created_at:          string;
 }
 
+/**
+ * Routing context used exclusively by the approval gate.
+ * Kept separate from TriageInput to preserve the §2 security boundary
+ * (routing metadata never reaches LLM agents).
+ */
+export interface SlackRoutingContext {
+  channel_id: string;
+  thread_ts:  string | null;
+}
+
 /** Extracts the §2 payload from a NormalizedRequest. Pure, no I/O. */
 export function toTriageInput(req: NormalizedRequest): TriageInput {
   return {

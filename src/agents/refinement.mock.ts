@@ -18,18 +18,18 @@ export async function mockRefinementAgent(
 
   const extracted: ExtractedFields = {
     system_name: 'ERP',
-    error_description: count >= 2 ? 'HTTP 500 ao gerar nota fiscal' : null,
+    error_description: count >= 2 ? 'HTTP 500 when generating invoice' : null,
   };
 
   if (count === 1) {
     return {
-      normalized_message: 'Usuário reporta erro ao gerar nota fiscal no ERP.',
-      intent: 'Reportar erro de sistema',
+      normalized_message: 'User reports error when generating invoice in ERP.',
+      intent: 'Report system error',
       domain_hint: 'SOFTWARE',
       system_hint: 'ERP',
       module_hint: 'invoice',
       is_complete: false,
-      clarification_question: 'Qual mensagem de erro aparece ao gerar a nota fiscal?',
+      clarification_question: 'What error message appears when generating the invoice?',
       clarification_round: Math.min(round + 1, 2) as 0 | 1 | 2,
       extracted_fields: extracted,
       notes: null,
@@ -38,8 +38,8 @@ export async function mockRefinementAgent(
 
   // Second call: complete
   return {
-    normalized_message: 'Usuário reporta erro HTTP 500 ao gerar nota fiscal no ERP.',
-    intent: 'Reportar erro de sistema',
+    normalized_message: 'User reports HTTP 500 error when generating invoice in ERP.',
+    intent: 'Report system error',
     domain_hint: 'SOFTWARE',
     system_hint: 'ERP',
     module_hint: 'invoice',

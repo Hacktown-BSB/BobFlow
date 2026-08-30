@@ -9,7 +9,8 @@ import { resolveApproval } from './approval.js';
 import type { RefinementAgent } from '../orchestrator/state-machine.js';
 // ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
 import type { TriagePort } from '../triage/port.js';
-import { triagePortImpl } from '../triage/impl.js';
+import { createTriagePortImpl } from '../triage/impl.js';
+import { getRequest } from '../db/repository.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -19,7 +20,7 @@ import { triagePortImpl } from '../triage/impl.js';
  */
 function openRequestMessage(request_id: string): string {
   const short = request_id.slice(0, 8);
-  return `Você já tem uma solicitação aberta: *${short}*. Responda naquela conversa ou aguarde a resolução antes de abrir uma nova.`;
+  return `You already have an open request: *${short}*. Please reply in that conversation or wait for it to be resolved before opening a new one.`;
 }
 
 export function createBot(db: Database.Database, env: {
@@ -41,7 +42,14 @@ export function createBot(db: Database.Database, env: {
   console.log(`[bot] refinement mode: ${mode === 'llm' ? 'LLM (real)' : 'MOCK (demo fallback)'}`);
 
   // ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
-  const triagePort: TriagePort = triagePortImpl;
+  const triagePort: TriagePort = createTriagePortImpl(
+    app.client,
+    (request_id) => {
+      const req = getRequest(db, request_id);
+      if (!req) return null;
+      return { channel_id: req.slack_channel_id, thread_ts: req.thread_ts };
+    },
+  );
   // ─────────────────────────────────────────────────────────────────────────────
   const stateMachine = new StateMachine(db, agent, sendMessage, triagePort);
 
