@@ -166,14 +166,14 @@ No forms. No routing charts. No manual escalation. Just: describe the problem, g
                    ┌────────────────────────┐
                    │    CONTEXT LAYER       │
                    │  Graphify · KB Index   │
-                   │  Incident Correlator   │
+                   │  (Incident Correlator: post-MVP) │
                    └────────────┬───────────┘
                                 │
             ┌───────────────────┼───────────────────┐
             ▼                   ▼                   ▼
      ┌─────────────┐    ┌──────────────┐    ┌───────────────┐
      │  GitHub API │    │  IT Ticketing│    │ Knowledge Base│
-     │  (Issues)   │    │  (mock/Jira) │    │  (JSON + vec) │
+     │  (Issues)   │    │  (stub/Jira) │    │  (JSON + vec) │
      └─────────────┘    └──────────────┘    └───────────────┘
                                 │
                                 ▼
@@ -239,9 +239,9 @@ The trace is never modified after creation. It is available to the employee on r
 | **Refinement** | All | High | Detect ambiguity; generate ≤ 2 targeted clarification questions; normalize request | ✅ Implemented |
 | **Triage** | All | Medium | Classify domain; compute deterministic priority score; select route; detect duplicates | ✅ Implemented |
 | **Engineering** | SOFTWARE, SECURITY | High | Retrieve GitHub code context via Graphify; compose structured GitHub Issue with real symbols and call paths | ✅ Implemented |
-| **Knowledge** | DIGITAL, BUSINESS_PROCESS, QUESTION, UNKNOWN | High | Semantic search over internal KB; return top-5 articles with confidence; recommend escalation when needed | ✅ Implemented (seeded KB) |
-| **Ticket** | HARDWARE, ACCESS | Low | Create structured IT ticket in the correct queue with priority and SLA derived from triage | ✅ Implemented (mock) |
-| **Incident** | All (correlation) | Low–Medium | Detect temporal + semantic clustering of similar requests; create incident record; trigger escalation | ✅ Implemented |
+| **Knowledge** | DIGITAL, BUSINESS_PROCESS, QUESTION, UNKNOWN | High | Semantic search over internal KB; return top-5 articles with confidence; recommend escalation when needed | 🔧 Stub (escalates to human — full impl post-MVP) |
+| **Ticket** | HARDWARE, ACCESS | Low | Create structured IT ticket in the correct queue with priority and SLA derived from triage | ✅ Implemented (stub) |
+| **Incident** | All (correlation) | Low–Medium | SECURITY and CRITICAL requests are routed through the Engineering agent as `issue_type: INCIDENT`; dedicated correlation engine post-MVP | 🔧 Partial (via issue.ts) |
 | **Notification** | All | Low | Send plain-language Slack status updates to the requesting employee at every lifecycle stage | ✅ Implemented |
 | **Orchestrator** | All | Minimal | State machine controller; route between agents; enforce human approval gates; write Decision Trace | ✅ Implemented |
 
@@ -256,6 +256,7 @@ The trace is never modified after creation. It is available to the employee on r
 | `SECURITY` | "received phishing email", "suspicious login from unknown IP", "credentials may be leaked" |
 | `BUSINESS_PROCESS` | "approval workflow is stuck", "invoice not reaching finance", "expense report missing step" |
 | `QUESTION` | "how do I set up MFA?", "what is our PTO policy?", "where do I submit expense reports?" |
+| `SARAMA` | "sarama SyncProducer hanging", "IBM/sarama ConsumerGroup rebalance error", "sarama config SSL issue" |
 | `UNKNOWN` | Anything unclassified — routed to best-effort KB lookup + human review |
 
 ### Priority Scoring
@@ -290,13 +291,14 @@ Domain overrides apply floors (never lower priority): SECURITY → floor HIGH; S
 
 ### IBM watsonx — AI Engine
 
-BobFlow is built around **IBM watsonx** as its primary AI engine. The [`LLMClient`](src/llm/client.ts) interface uses the OpenAI-compatible endpoint exposed by watsonx, with IBM-specific authentication:
+BobFlow is built around **IBM watsonx** as its primary AI engine. The [`LLMClient`](src/llm/client.ts) interface has a dedicated watsonx.ai backend that handles IBM Cloud authentication automatically:
 
-- `LLM_AUTH_STYLE=apikey` — IBM API key authentication
-- `LLM_TEAM_ID` — IBM watsonx team/project header (`X-Team-ID`)
-- Drop-in support for any watsonx-hosted model via `LLM_MODEL`
+- **IAM token exchange** — The client exchanges `LLM_API_KEY` for a short-lived IBM Cloud IAM bearer token, with automatic refresh before expiry. No manual token management needed.
+- **`LLM_PROJECT_ID`** — watsonx.ai requires a project (or space) ID, passed as `project_id` in every request body.
+- **Auto-detection** — Setting `LLM_BASE_URL` to a `*.ml.cloud.ibm.com` endpoint activates the watsonx backend automatically. Override with `LLM_PROVIDER=watsonx` for non-standard URLs.
+- **Drop-in model switching** — Any watsonx-hosted model (e.g. `meta-llama/llama-3-3-70b-instruct`, `ibm/granite-13b-chat-v2`) is selectable via `LLM_MODEL`.
 
-The abstraction layer also supports OpenAI GPT-4o and Azure OpenAI, making the system portable across IBM cloud environments and local development alike.
+The abstraction layer also supports any OpenAI-compatible endpoint (including Azure OpenAI and the IBM Bob inference API). When using the IBM Bob inference API with a General API key, set `LLM_AUTH_STYLE=apikey` and optionally `LLM_TEAM_ID` to pass the `X-Team-ID` header.
 
 ### Full Stack
 
@@ -325,7 +327,7 @@ The abstraction layer also supports OpenAI GPT-4o and Azure OpenAI, making the s
 - A **Slack App** with Socket Mode enabled and the following scopes:
   - Bot token scopes: `app_mentions:read`, `chat:write`, `channels:history`
   - App-level token with `connections:write` scope
-- An **IBM watsonx** API key and endpoint URL (or any OpenAI-compatible LLM endpoint)
+- An **IBM watsonx** API key, endpoint URL, and project ID (or any OpenAI-compatible LLM endpoint)
 - **Optional:** Graphify CLI for code intelligence (falls back to mock provider if absent)
 
 ### 1. Clone and Install
@@ -358,24 +360,34 @@ TRIAGE_ADMIN_USERS=U1111111111,U2222222222
 # Path to SQLite database file (created automatically on first run)
 DB_PATH=triage.db
 
-# ── IBM watsonx / LLM ─────────────────────────────────────────
-# Base URL of the OpenAI-compatible endpoint
-LLM_BASE_URL=https://your-watsonx-endpoint/v1
+# ── IBM watsonx / LLM ─────────────────────────────────────────────────────────
+# LLM provider: "watsonx" for IBM watsonx.ai, "openai" for OpenAI-compatible endpoints.
+# Auto-detected from LLM_BASE_URL when URL matches *.ml.cloud.ibm.com.
+LLM_PROVIDER=watsonx
 
-# IBM API key
+# Base URL for the LLM endpoint.
+# watsonx.ai example: https://<region>.ml.cloud.ibm.com
+# Bob inference API:  https://your-bob-inference-endpoint/v1
+LLM_BASE_URL=https://us-south.ml.cloud.ibm.com
+
+# IBM Cloud API key (used for IAM token exchange when LLM_PROVIDER=watsonx)
 LLM_API_KEY=your-ibm-api-key
 
-# Authentication style: "apikey" for IBM watsonx, "bearer" for OpenAI
-LLM_AUTH_STYLE=apikey
+# watsonx.ai project ID — required when LLM_PROVIDER=watsonx
+# Found in your watsonx.ai project settings under "Manage > General"
+LLM_PROJECT_ID=your-watsonx-project-id
 
-# Model name as listed in your watsonx deployment
-LLM_MODEL=ibm/granite-13b-chat-v2
+# Model ID as registered in your watsonx deployment
+LLM_MODEL=meta-llama/llama-3-3-70b-instruct
 
 # Embedding model for semantic KB search
 LLM_EMBED_MODEL=ibm/slate-125m-english-rtrvr
 
-# IBM watsonx team/project ID (X-Team-ID header)
-LLM_TEAM_ID=your-team-id
+# ── IBM Bob Inference API (optional, alternative to watsonx.ai) ───────────────
+# Only set these if using the IBM Bob inference API instead of watsonx.ai.
+# Authentication style: "apikey" sends X-API-Key; "bearer" sends Authorization: Bearer
+# LLM_AUTH_STYLE=apikey
+# LLM_TEAM_ID=your-team-id   # X-Team-ID header (required for General API key)
 
 # ── Agent Modes ───────────────────────────────────────────────
 # Set to "mock" to run fully offline without LLM calls (demo/CI mode)
@@ -435,7 +447,7 @@ npm start
 
 BobFlow's MVP covers four end-to-end demo workflows. Post-hackathon priorities:
 
-- [ ] **🎫 Real ticketing integration** — Replace the mock stub with a live Jira or ServiceNow REST API connector
+- [ ] **🎫 Real ticketing integration** — Replace the stub with a live Jira or ServiceNow REST API connector
 - [ ] **📚 Knowledge Base admin UI** — Web interface to add, edit, and curate KB articles without editing files manually
 - [ ] **📊 Analytics dashboard** — Request volume trends, MTTR by domain, SLA breach rate, knowledge gap detection
 - [ ] **🔁 Feedback loop** — Automatically promote resolved requests to KB articles when confidence is high
