@@ -16,14 +16,40 @@ export interface LLMClient {
 
 const TIMEOUT_MS = 60_000;   // §06_workflow_architecture AGENT_EXECUTING budget
 
+/**
+ * Reads an env var, tolerating trailing whitespace and inline `# comments`
+ * (which corrupt values in naive .env loaders). Falls back to `def` when unset
+ * or empty. Only strips a `#` preceded by whitespace, so secrets like `a#b`
+ * are preserved.
+ */
+function cleanEnv(v: string | undefined, def: string): string {
+  if (v == null) return def;
+  return v.replace(/\s+#.*$/, '').trim() || def;
+}
+
 export function createLLMClient(): LLMClient {
-  const baseUrl   = (process.env['LLM_BASE_URL'] ?? 'https://api.openai.com/v1').replace(/\/$/, '');
-  const apiKey    = process.env['LLM_API_KEY']  ?? '';
-  const model     = process.env['LLM_MODEL']    ?? 'gpt-4o';
-  const embedModel = process.env['LLM_EMBED_MODEL'] ?? 'text-embedding-3-small';
-  const teamId    = process.env['LLM_TEAM_ID'];   // optional — only sent when set
+  const baseUrl   = cleanEnv(process.env['LLM_BASE_URL'], 'https://api.openai.com/v1').replace(/\/+$/, '');
+  const apiKey    = cleanEnv(process.env['LLM_API_KEY'], '');
+  const model     = cleanEnv(process.env['LLM_MODEL'], 'gpt-4o');
+  const embedModel = cleanEnv(process.env['LLM_EMBED_MODEL'], 'text-embedding-3-small');
+  const teamId    = cleanEnv(process.env['LLM_TEAM_ID'], '') || undefined;   // optional
   // LLM_AUTH_STYLE=apikey (default) sends X-API-Key; bearer sends Authorization: Bearer
-  const authStyle = (process.env['LLM_AUTH_STYLE'] ?? 'apikey') as 'apikey' | 'bearer';
+  const authStyle = cleanEnv(process.env['LLM_AUTH_STYLE'], 'apikey') as 'apikey' | 'bearer';
+
+  // Provider detection: IBM watsonx.ai speaks IAM auth + /ml/v1/text/chat, NOT
+  // OpenAI's /chat/completions. Auto-detect by host, or force with LLM_PROVIDER.
+  const provider = cleanEnv(process.env['LLM_PROVIDER'], '').toLowerCase()
+    || (/\.ml\.cloud\.ibm\.com/i.test(baseUrl) ? 'watsonx' : 'openai');
+
+  if (provider === 'watsonx') {
+    const projectId = cleanEnv(process.env['LLM_PROJECT_ID'], '')
+      || cleanEnv(process.env['WATSONX_PROJECT_ID'], '')
+      || cleanEnv(process.env['project_id'], '');
+    if (!apiKey)    throw new Error('[llm] watsonx requires LLM_API_KEY');
+    if (!model)     throw new Error('[llm] watsonx requires LLM_MODEL (watsonx model_id, e.g. meta-llama/llama-3-3-70b-instruct)');
+    if (!projectId) throw new Error('[llm] watsonx requires a project id (set LLM_PROJECT_ID or project_id)');
+    return createWatsonxClient({ baseUrl, apiKey, model, embedModel, projectId });
+  }
 
   return { complete, embed };
 
@@ -118,6 +144,95 @@ export class MockLLMClient implements LLMClient {
   setFixtures(fixtures: MockFixtures): void {
     this.fixtures = fixtures;
   }
+}
+
+// ── watsonx.ai client ──────────────────────────────────────────────────────────
+// IBM watsonx.ai: IAM-authenticated, model_id + project_id, /ml/v1/text/chat.
+// The chat response is OpenAI-shaped (choices[0].message.content), so callers
+// that already parse that field work unchanged.
+
+interface WatsonxConfig {
+  baseUrl: string;
+  apiKey: string;
+  model: string;
+  embedModel: string;
+  projectId: string;
+}
+
+function createWatsonxClient(cfg: WatsonxConfig): LLMClient {
+  const version = cleanEnv(process.env['WATSONX_VERSION'], '2023-05-29');
+
+  return { complete, embed };
+
+  async function complete(
+    params: { system: string; user: string; max_tokens?: number },
+  ): Promise<string> {
+    const token = await getIamToken(cfg.apiKey);
+    const result = await fetchWithRetry(`${cfg.baseUrl}/ml/v1/text/chat?version=${version}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        model_id:   cfg.model,
+        project_id: cfg.projectId,
+        messages: [
+          { role: 'system', content: params.system },
+          { role: 'user',   content: params.user   },
+        ],
+        temperature: 0,
+        ...(params.max_tokens != null ? { max_tokens: params.max_tokens } : {}),
+      }),
+    });
+    const content = (result as { choices?: Array<{ message?: { content?: string } }> })
+      .choices?.[0]?.message?.content;
+    if (content == null) throw new Error('watsonx response missing choices[0].message.content');
+    return content;
+  }
+
+  async function embed(text: string): Promise<number[]> {
+    const token = await getIamToken(cfg.apiKey);
+    const result = await fetchWithRetry(`${cfg.baseUrl}/ml/v1/text/embeddings?version=${version}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ model_id: cfg.embedModel, project_id: cfg.projectId, inputs: [text] }),
+    });
+    const vector = (result as { results?: Array<{ embedding?: number[] }> })
+      .results?.[0]?.embedding;
+    if (vector == null) throw new Error('watsonx response missing results[0].embedding');
+    return vector;
+  }
+}
+
+// ── IBM Cloud IAM token cache ────────────────────────────────────────────────
+// watsonx needs a short-lived IAM bearer token exchanged from the API key.
+// Cache per key and refresh a minute before expiry to avoid a round-trip per call.
+
+interface CachedToken { token: string; expiresAt: number; }
+const _iamTokens = new Map<string, CachedToken>();
+
+async function getIamToken(apiKey: string): Promise<string> {
+  const now = Date.now();
+  const cached = _iamTokens.get(apiKey);
+  if (cached && cached.expiresAt > now + 60_000) return cached.token;
+
+  const res = await fetch('https://iam.cloud.ibm.com/identity/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded', 'Accept': 'application/json' },
+    body: new URLSearchParams({
+      grant_type: 'urn:ibm:params:oauth:grant-type:apikey',
+      apikey: apiKey,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => '');
+    throw new Error(`IAM token exchange failed HTTP ${res.status}: ${text.slice(0, 200)}`);
+  }
+  const json = await res.json() as { access_token?: string; expires_in?: number };
+  if (!json.access_token) throw new Error('IAM token exchange missing access_token');
+  _iamTokens.set(apiKey, {
+    token: json.access_token,
+    expiresAt: now + (json.expires_in ?? 3600) * 1000,
+  });
+  return json.access_token;
 }
 
 // ── internal helpers ───────────────────────────────────────────────────────────
