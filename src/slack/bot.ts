@@ -9,7 +9,7 @@ import { resolveApproval } from './approval.js';
 import type { RefinementAgent } from '../orchestrator/state-machine.js';
 // ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
 import type { TriagePort } from '../triage/port.js';
-import { triagePortImpl } from '../triage/impl.js';
+import { TriagePortImpl } from '../triage/impl.js';
 // ─────────────────────────────────────────────────────────────────────────────
 
 /**
@@ -41,7 +41,9 @@ export function createBot(db: Database.Database, env: {
   console.log(`[bot] refinement mode: ${mode === 'llm' ? 'LLM (real)' : 'MOCK (demo fallback)'}`);
 
   // ─── TRIAGE INTEGRATION POINT (Dev 2 — implemented) ─────────────────────────
-  const triagePort: TriagePort = triagePortImpl;
+  // Wired with db + sendMessage so the post-triage pipeline persists state and
+  // replies to the requester in Slack (Phase 2).
+  const triagePort: TriagePort = new TriagePortImpl(db, sendMessage);
   // ─────────────────────────────────────────────────────────────────────────────
   const stateMachine = new StateMachine(db, agent, sendMessage, triagePort);
 
