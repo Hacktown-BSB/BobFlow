@@ -13,3 +13,7 @@ smoke.mjs
 # PR #2 monorepo artefacts
 packages/*/dist/
 packages/*/node_modules/
+
+# Graphify artefacts (generated — do not commit)
+graphify-out/
+.code-intelligence-cache/
