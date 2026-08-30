@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "test": "npm run build && node --test dist/tests/intake-loop.test.js dist/tests/priority-scoring.test.js dist/tests/triage-agent.test.js",
-    "start": "npm run build && node dist/src/index.js"
+    "start": "npm run build && node --env-file-if-exists=.env dist/src/index.js"
   },
   "repository": {
     "type": "git",
