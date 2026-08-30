@@ -180,6 +180,34 @@ export interface DecisionTraceEntry {
   result: string | null;
 }
 
+/**
+ * Additive, idempotent column migrations for pre-existing databases.
+ *
+ * `CREATE TABLE IF NOT EXISTS` never alters a table that already exists, so a
+ * `triage.db` created before these columns were introduced is missing them —
+ * which crashes markTriageDispatched / appendTrace at runtime with
+ * `SqliteError: no such column`. We reconcile by introspecting the live table
+ * and adding any absent column. Each entry uses a constant DEFAULT so SQLite can
+ * backfill existing rows. Append future additive columns here.
+ */
+const ADDITIVE_REQUEST_COLUMNS: Array<{ name: string; ddl: string }> = [
+  { name: 'decision_trace',    ddl: "TEXT NOT NULL DEFAULT '[]'" },
+  { name: 'triage_dispatched', ddl: 'INTEGER NOT NULL DEFAULT 0' },
+];
+
+function migrateSchema(db: Database.Database): void {
+  const existing = new Set(
+    (db.prepare('PRAGMA table_info(requests)').all() as Array<{ name: string }>)
+      .map(c => c.name),
+  );
+  for (const { name, ddl } of ADDITIVE_REQUEST_COLUMNS) {
+    if (!existing.has(name)) {
+      db.exec(`ALTER TABLE requests ADD COLUMN ${name} ${ddl};`);
+      console.log(`[migrate] added missing column requests.${name}`);
+    }
+  }
+}
+
 export function initDb(db: Database.Database): void {
   db.exec(`
     CREATE TABLE IF NOT EXISTS requests (
@@ -217,4 +245,7 @@ export function initDb(db: Database.Database): void {
       expires_at     TEXT NOT NULL
     );
   `);
+
+  // Reconcile pre-existing on-disk databases that predate additive columns.
+  migrateSchema(db);
 }
