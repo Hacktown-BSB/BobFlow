@@ -238,11 +238,11 @@ export class SlackAdapter {
     if (existing) {
       clearTimeout(existing.timer);
       existing.messages.push(text);
-      existing.timer = setTimeout(() => this._flushCreate(key), this.debounceMs);
+      existing.timer = setTimeout(() => this._guardedFlush(() => this._flushCreate(key), 'flushCreate'), this.debounceMs);
       return;
     }
 
-    const timer = setTimeout(() => this._flushCreate(key), this.debounceMs);
+    const timer = setTimeout(() => this._guardedFlush(() => this._flushCreate(key), 'flushCreate'), this.debounceMs);
     this.buffers.set(key, {
       messages: [text],
       user_id: userId,
@@ -251,6 +251,21 @@ export class SlackAdapter {
       first_ts: ts ?? '',   // C2: thread anchor = user's original message ts (null for DMs)
       attachments: [],
       timer,
+    });
+  }
+
+  /**
+   * Error boundary for debounced flushes.
+   *
+   * Flushes fire from `setTimeout`, OUTSIDE the `processEvent` try/catch and
+   * outside any awaited chain, so a rejection here becomes an unhandled promise
+   * rejection that crashes the whole process (P0: bot dies on triage handoff).
+   * This wraps every flush so a downstream failure is logged and contained —
+   * the request record is already persisted and stays retryable.
+   */
+  private _guardedFlush(run: () => Promise<void>, label: string): void {
+    run().catch(err => {
+      console.error(`[adapter] ${label} failed (request left for retry):`, err);
     });
   }
 
@@ -306,10 +321,10 @@ export class SlackAdapter {
     if (existing) {
       clearTimeout(existing.timer);
       existing.messages.push(text);
-      existing.timer = setTimeout(() => this._flushReply(key, pending.request_id, threadTs, userId, channelId), this.debounceMs);
+      existing.timer = setTimeout(() => this._guardedFlush(() => this._flushReply(key, pending.request_id, threadTs, userId, channelId), 'flushReply'), this.debounceMs);
       return;
     }
-    const timer = setTimeout(() => this._flushReply(key, pending.request_id, threadTs, userId, channelId), this.debounceMs);
+    const timer = setTimeout(() => this._guardedFlush(() => this._flushReply(key, pending.request_id, threadTs, userId, channelId), 'flushReply'), this.debounceMs);
     this.replyBuffers.set(key, { messages: [text], timer });
   }
 

@@ -2,6 +2,16 @@ import Database from 'better-sqlite3';
 import { initDb } from './db/schema.js';
 import { createBot } from './slack/bot.js';
 
+// ── Global safety net ─────────────────────────────────────────────────────────
+// A stray rejection from a debounced flush or a downstream agent must never take
+// the bot down in the middle of a conversation. Log and keep serving (P0).
+process.on('unhandledRejection', (reason) => {
+  console.error('[fatal-guard] unhandledRejection (contained to keep bot alive):', reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[fatal-guard] uncaughtException (contained to keep bot alive):', err);
+});
+
 // ── Env validation ────────────────────────────────────────────────────────────
 const REQUIRED_VARS = [
   'SLACK_BOT_TOKEN',

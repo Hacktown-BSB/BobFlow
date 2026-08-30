@@ -258,11 +258,20 @@ export async function refinementAgent(
 
   // Deterministic fields
   const domain_hint = validateDomain(llmOutput.domain_hint);
-  const finalRound  = Math.min(round, 2) as 0 | 1 | 2;
-  const is_complete = computeIsComplete(domain_hint, extracted, finalRound);
-  const clarification_question = (!is_complete && finalRound < 2)
+  const currentRound = Math.min(round, 2) as 0 | 1 | 2;
+  const is_complete = computeIsComplete(domain_hint, extracted, currentRound);
+  const clarification_question = (!is_complete && currentRound < 2)
     ? selectClarificationQuestion(domain_hint, extracted)
     : null;
+  // Advance the round ONLY when we actually issue a new clarification question,
+  // mirroring the mock (`round + 1`) and the (g)-test contract. This is the P0
+  // fix: the previous `Math.min(round, 2)` never incremented, so the stored
+  // clarification_round stayed 0, the same question repeated forever, and the
+  // request never reached READY_FOR_TRIAGE. The gate above still keys off
+  // currentRound, so the two-round ceiling is preserved.
+  const finalRound = (clarification_question != null
+    ? Math.min(currentRound + 1, 2)
+    : currentRound) as 0 | 1 | 2;
 
   // Normalised message falls back to raw message on failure
   const normalized_message =
