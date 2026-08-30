@@ -333,8 +333,8 @@ The abstraction layer also supports any OpenAI-compatible endpoint (including Az
 ### 1. Clone and Install
 
 ```bash
-git clone https://github.com/Hacktown-BSB/ZovaoDoBob.git
-cd ZovaoDoBob
+git clone https://github.com/Hacktown-BSB/BobFlow.git
+cd BobFlow
 npm install
 ```
 
