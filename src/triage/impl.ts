@@ -120,6 +120,21 @@ export class TriagePortImpl implements TriagePort {
 
     // ── RESOLVED ──────────────────────────────────────────────────────────────
     console.log(`[triage-port] RESOLVED request_id=${input.request_id} via ${route} agent`);
+
+    // ── User feedback on Slack ─────────────────────────────────────────────
+    if (this.slackClient) {
+      const slackCtx = this.slackContextResolver?.(input.request_id) ?? null;
+      const feedbackText = buildResolutionFeedback(agentResult, triageResult, route);
+      try {
+        await this.slackClient.chat.postMessage({
+          channel: slackCtx?.channel_id ?? '',
+          ...(slackCtx?.thread_ts ? { thread_ts: slackCtx.thread_ts } : {}),
+          text: feedbackText,
+        });
+      } catch (err) {
+        console.error(`[triage-port] failed to post Slack feedback for request_id=${input.request_id}:`, err);
+      }
+    }
   }
 }
 
@@ -153,6 +168,32 @@ function buildApprovalDescription(
   }
   // knowledge — escalation
   return `Escalate to specialist team — domain: ${triageResult.domain}, priority: ${triageResult.priority}`;
+}
+
+function buildResolutionFeedback(
+  agentResult: KnowledgeResult | IssueResult | TicketResult,
+  triageResult: TriageResult,
+  route: 'knowledge' | 'issue' | 'ticket',
+): string {
+  if (route === 'issue') {
+    const r = agentResult as IssueResult;
+    const title = r.github_issue?.title ?? triageResult.domain;
+    return (
+      `✅ *Context understood.* Your request has been processed and a GitHub issue has been created in the Samara repository.\n` +
+      `*Issue:* ${title}\n` +
+      `*Domain:* ${triageResult.domain} · *Priority:* ${triageResult.priority}`
+    );
+  }
+  if (route === 'ticket') {
+    const r = agentResult as TicketResult;
+    return (
+      `✅ *Context understood.* A support ticket has been created.\n` +
+      `*Ticket:* ${r.title}\n` +
+      `*Queue:* ${r.queue} · *Priority:* ${r.priority}`
+    );
+  }
+  // knowledge
+  return `✅ *Context understood.* Your request has been routed to the specialist team — domain: ${triageResult.domain}, priority: ${triageResult.priority}.`;
 }
 
 // ─── Factory function (used by bot.ts) ────────────────────────────────────────

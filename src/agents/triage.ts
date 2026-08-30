@@ -102,7 +102,7 @@ interface LLMTriageOutput {
 
 const VALID_DOMAINS = new Set<string>([
   'SOFTWARE', 'HARDWARE', 'ACCESS', 'DIGITAL',
-  'SECURITY', 'BUSINESS_PROCESS', 'QUESTION', 'UNKNOWN',
+  'SECURITY', 'BUSINESS_PROCESS', 'QUESTION', 'UNKNOWN', 'SARAMA',
 ]);
 
 function validateDomain(raw: unknown): Domain | null {

@@ -81,7 +81,8 @@ export type Status =
 
 export type Domain =
   | 'SOFTWARE' | 'HARDWARE' | 'ACCESS' | 'DIGITAL'
-  | 'SECURITY' | 'BUSINESS_PROCESS' | 'QUESTION' | 'UNKNOWN';
+  | 'SECURITY' | 'BUSINESS_PROCESS' | 'QUESTION' | 'UNKNOWN'
+  | 'SARAMA';
 
 export interface ClarificationEntry {
   question: string;
@@ -106,6 +107,12 @@ export interface ExtractedFields {
   stuck_step?: string | null;
   specific_question?: string | null;
   general_description?: string | null;
+  // SARAMA-specific fields
+  sarama_component?: string | null;
+  sarama_operation?: string | null;
+  sarama_error_detail?: string | null;
+  sarama_kafka_version?: string | null;
+  sarama_config_area?: string | null;
 }
 
 export interface NormalizedRequest {
