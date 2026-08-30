@@ -253,3 +253,31 @@ export function resetTriageDispatched(db: Database.Database, request_id: string)
     'UPDATE requests SET triage_dispatched = 0, updated_at = ? WHERE request_id = ?'
   ).run(new Date().toISOString(), request_id);
 }
+
+/**
+ * Phase 2 persistence: stores the TriageResult (as JSON) so the post-triage
+ * pipeline no longer lives only in memory. Read back by the dashboard / audit.
+ */
+export function saveTriageResult(
+  db: Database.Database,
+  request_id: string,
+  result: unknown,
+): void {
+  db.prepare(
+    'UPDATE requests SET triage_result = ?, updated_at = ? WHERE request_id = ?'
+  ).run(JSON.stringify(result), new Date().toISOString(), request_id);
+}
+
+/**
+ * Phase 2 persistence: stores the downstream agent result (Knowledge / Issue /
+ * Ticket) as JSON.
+ */
+export function saveAgentResult(
+  db: Database.Database,
+  request_id: string,
+  result: unknown,
+): void {
+  db.prepare(
+    'UPDATE requests SET agent_result = ?, updated_at = ? WHERE request_id = ?'
+  ).run(JSON.stringify(result), new Date().toISOString(), request_id);
+}

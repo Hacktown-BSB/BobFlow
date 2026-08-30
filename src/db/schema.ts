@@ -193,6 +193,9 @@ export interface DecisionTraceEntry {
 const ADDITIVE_REQUEST_COLUMNS: Array<{ name: string; ddl: string }> = [
   { name: 'decision_trace',    ddl: "TEXT NOT NULL DEFAULT '[]'" },
   { name: 'triage_dispatched', ddl: 'INTEGER NOT NULL DEFAULT 0' },
+  // Phase 2: post-triage persistence (TriageResult / downstream agent result as JSON).
+  { name: 'triage_result',     ddl: 'TEXT' },
+  { name: 'agent_result',      ddl: 'TEXT' },
 ];
 
 function migrateSchema(db: Database.Database): void {
@@ -234,6 +237,8 @@ export function initDb(db: Database.Database): void {
       notes               TEXT,
       decision_trace      TEXT NOT NULL DEFAULT '[]',
       triage_dispatched   INTEGER NOT NULL DEFAULT 0,
+      triage_result       TEXT,
+      agent_result        TEXT,
       created_at          TEXT NOT NULL,
       updated_at          TEXT NOT NULL
     );
